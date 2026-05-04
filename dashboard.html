@@ -297,6 +297,67 @@
   }
   .refresh-btn:hover { background: var(--surface2); }
 
+  /* Trade History Panel */
+  .trade-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 24px;
+    display: none;
+  }
+  .trade-panel.open { display: block; }
+  .trade-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .trade-panel-header h3 { font-size: 16px; font-weight: 600; }
+  .trade-panel-close {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 4px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .trade-panel-close:hover { background: var(--surface2); color: var(--text); }
+  .trade-panel table { font-size: 13px; }
+  .trade-panel td, .trade-panel th { padding: 8px 12px; }
+  .trade-reason {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+  .trade-reason.take_profit { background: rgba(0,196,140,0.15); color: var(--green); }
+  .trade-reason.stop_loss { background: rgba(255,71,87,0.15); color: var(--red); }
+  .trade-reason.rsi_overbought { background: rgba(255,193,7,0.15); color: var(--yellow); }
+  .trades-link {
+    color: var(--blue);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .trades-link:hover { color: var(--text); }
+  .trade-summary {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .trade-stat {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .trade-stat strong {
+    color: var(--text);
+    margin-left: 4px;
+  }
+
   /* Footer */
   .footer {
     color: var(--text-dim);
@@ -317,6 +378,37 @@ let DATA = null;
 let showAll = false;
 let sortCol = null;
 let sortAsc = true;
+let tradePanel = null;  // { symbol, trades } or null
+
+async function showTrades(symbol) {
+  try {
+    const resp = await fetch(`/api/trades/${symbol}`);
+    const trades = await resp.json();
+    tradePanel = { symbol, trades };
+    render();
+    // Scroll to trade panel
+    setTimeout(() => {
+      const el = document.getElementById('trade-history');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  } catch (e) {
+    console.error('Failed to load trades:', e);
+  }
+}
+
+function closeTrades() {
+  tradePanel = null;
+  render();
+}
+
+function renderReasonLabel(reason) {
+  const labels = {
+    'take_profit': 'Take Profit',
+    'stop_loss': 'Stop Loss',
+    'rsi_overbought': 'RSI Overbought',
+  };
+  return `<span class="trade-reason ${reason}">${labels[reason] || reason}</span>`;
+}
 
 async function fetchData() {
   try {
@@ -565,7 +657,7 @@ function render() {
               <td><span class="status-dot ${s.macd_bullish ? 'on' : 'off'}"></span>${s.macd_bullish ? 'Bull' : 'Bear'}</td>
               <td><span class="status-dot ${s.ema_aligned ? 'on' : 'off'}"></span>${s.ema_aligned ? '9>21' : '9<21'}</td>
               <td>${signalBadge}</td>
-              <td>${s.bt_trades}</td>
+              <td>${s.bt_trades > 0 ? `<span class="trades-link" onclick="showTrades('${s.symbol}')">${s.bt_trades}</span>` : '0'}</td>
               <td class="${wrClass}">${s.bt_win_rate.toFixed(1)}%</td>
               <td class="${btRetClass}">${s.bt_total_return > 0 ? '+' : ''}${s.bt_total_return.toFixed(2)}%</td>
             </tr>`;
@@ -573,6 +665,64 @@ function render() {
         </tbody>
       </table>
     </div>
+
+    <!-- Trade History Panel -->
+    ${tradePanel ? `
+    <div class="trade-panel open" id="trade-history">
+      <div class="trade-panel-header">
+        <h3>Trade History — ${tradePanel.symbol}
+          <span style="font-size:13px;color:var(--text-dim);font-weight:400;margin-left:8px">
+            ${tradePanel.trades.length} trades
+          </span>
+        </h3>
+        <button class="trade-panel-close" onclick="closeTrades()">Close ✕</button>
+      </div>
+      ${tradePanel.trades.length > 0 ? (() => {
+        const pnls = tradePanel.trades.map(t => t.pnl_pct);
+        const wins = pnls.filter(p => p > 0).length;
+        const totalRet = pnls.reduce((a, b) => a + b, 0);
+        const avgRet = totalRet / pnls.length;
+        const avgHold = tradePanel.trades.reduce((a, t) => a + t.hold_days, 0) / tradePanel.trades.length;
+        return `
+        <div class="trade-summary">
+          <div class="trade-stat">Win Rate:<strong class="${wins/pnls.length >= 0.5 ? 'positive' : 'negative'}">${(wins/pnls.length*100).toFixed(1)}%</strong></div>
+          <div class="trade-stat">Total Return:<strong class="${totalRet > 0 ? 'positive' : 'negative'}">${totalRet > 0 ? '+' : ''}${totalRet.toFixed(2)}%</strong></div>
+          <div class="trade-stat">Avg Return:<strong class="${avgRet > 0 ? 'positive' : 'negative'}">${avgRet > 0 ? '+' : ''}${avgRet.toFixed(2)}%</strong></div>
+          <div class="trade-stat">Avg Hold:<strong>${avgHold.toFixed(0)} days</strong></div>
+        </div>
+        <div class="table-wrap" style="margin-bottom:0">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Entry Date</th>
+                <th>Entry Price</th>
+                <th>Exit Date</th>
+                <th>Exit Price</th>
+                <th>P&L %</th>
+                <th>Hold Days</th>
+                <th>Exit Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tradePanel.trades.map((t, i) => {
+                const pnlClass = t.pnl_pct > 0 ? 'positive' : t.pnl_pct < 0 ? 'negative' : 'neutral';
+                return `<tr>
+                  <td style="color:var(--text-dim)">${i + 1}</td>
+                  <td>${t.entry_date}</td>
+                  <td>${t.entry_price.toFixed(2)}</td>
+                  <td>${t.exit_date}</td>
+                  <td>${t.exit_price.toFixed(2)}</td>
+                  <td class="${pnlClass}">${t.pnl_pct > 0 ? '+' : ''}${t.pnl_pct.toFixed(2)}%</td>
+                  <td>${t.hold_days}</td>
+                  <td>${renderReasonLabel(t.reason)}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+      })() : '<div class="no-signals">No trades found</div>'}
+    </div>` : ''}
 
     <div class="footer">
       Filter: &ge; ${DATA.filter_criteria.min_trades} trades, &ge; ${DATA.filter_criteria.min_win_rate}% win rate, &gt; ${DATA.filter_criteria.min_total_return}% return

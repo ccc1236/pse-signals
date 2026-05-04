@@ -13,7 +13,7 @@ from config import (
     MIN_TRADES, MIN_WIN_RATE, MIN_TOTAL_RETURN, get_stocks,
 )
 from indicators import add_indicators
-from backtest import run_backtest, get_filtered_stocks
+from backtest import run_backtest, get_filtered_stocks, backtest_stock
 from signals import scan_signals
 from ranking import fetch_current_stocks
 
@@ -137,8 +137,34 @@ def get_dashboard_data() -> dict:
     }
 
 
+def get_trade_history(symbol: str) -> list[dict]:
+    """Get backtest trade history for a single stock."""
+    path = os.path.join(DATA_DIR, f"{symbol}.csv")
+    if not os.path.exists(path):
+        return []
+    df = pd.read_csv(path, parse_dates=["date"])
+    if len(df) < 30:
+        return []
+    result = backtest_stock(df)
+    trades = result.get("trades", [])
+    # Convert dates to strings for JSON
+    for t in trades:
+        t["entry_date"] = str(t["entry_date"].date()) if hasattr(t["entry_date"], "date") else str(t["entry_date"])[:10]
+        t["exit_date"] = str(t["exit_date"].date()) if hasattr(t["exit_date"], "date") else str(t["exit_date"])[:10]
+    return trades
+
+
 class DashboardHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
+        if self.path.startswith("/api/trades/"):
+            symbol = self.path.split("/")[-1].upper()
+            trades = get_trade_history(symbol)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(trades).encode())
+            return
         if self.path == "/api/data":
             data = get_dashboard_data()
             self.send_response(200)
