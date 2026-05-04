@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PSE Signal Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232733;
+    --border: #2e3345;
+    --text: #e1e4ed;
+    --text-dim: #8b8fa3;
+    --green: #00c48c;
+    --red: #ff4757;
+    --yellow: #ffc107;
+    --blue: #4a9eff;
+    --purple: #a855f7;
+    --orange: #ff8c42;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .container { max-width: 1440px; margin: 0 auto; padding: 20px; }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 { font-size: 22px; font-weight: 600; }
+  .header h1 span { color: var(--blue); }
+  .header-meta { text-align: right; color: var(--text-dim); font-size: 13px; }
+  .header-meta .date { font-size: 15px; color: var(--text); }
+  .badge-dynamic {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    background: rgba(74,158,255,0.15);
+    color: var(--blue);
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  /* Market Overview Cards */
+  .overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .card-value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .card-value.green { color: var(--green); }
+  .card-value.red { color: var(--red); }
+  .card-value.yellow { color: var(--yellow); }
+  .card-value.blue { color: var(--blue); }
+  .card-value.orange { color: var(--orange); }
+  .card-value.purple { color: var(--purple); }
+  .card-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  /* Alerts Bar */
+  .alerts-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .alert-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .alert-chip.oversold { background: rgba(168,85,247,0.12); color: var(--purple); border: 1px solid rgba(168,85,247,0.25); }
+  .alert-chip.overbought { background: rgba(255,71,87,0.12); color: var(--red); border: 1px solid rgba(255,71,87,0.25); }
+  .alert-chip.buy { background: rgba(0,196,140,0.12); color: var(--green); border: 1px solid rgba(0,196,140,0.25); }
+  .alert-chip .alert-label { font-size: 11px; opacity: 0.7; font-weight: 400; }
+
+  /* Signals Section */
+  .signals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .signal-group { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .signal-group h3 { font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .signal-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .signal-badge.buy { background: rgba(0,196,140,0.15); color: var(--green); }
+  .signal-badge.sell { background: rgba(255,71,87,0.15); color: var(--red); }
+  .signal-badge.warn { background: rgba(255,193,7,0.15); color: var(--yellow); }
+  .signal-badge.oversold { background: rgba(168,85,247,0.15); color: var(--purple); }
+  .signal-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+  .signal-item:last-child { margin-bottom: 0; }
+  .signal-symbol { font-weight: 700; font-size: 15px; }
+  .signal-name { font-size: 11px; color: var(--text-dim); }
+  .signal-price { color: var(--text-dim); font-size: 13px; }
+  .signal-reason { font-size: 12px; color: var(--text-dim); max-width: 200px; text-align: right; }
+  .no-signals { color: var(--text-dim); font-style: italic; font-size: 14px; padding: 20px; text-align: center; }
+
+  /* Table Section */
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title .count {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow-x: auto;
+    margin-bottom: 24px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 12px 14px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    cursor: pointer;
+    user-select: none;
+  }
+  th:hover { color: var(--text); }
+  th .sort-arrow { font-size: 10px; margin-left: 3px; }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  tr.watchlist-row { border-left: 3px solid var(--yellow); }
+  .positive { color: var(--green); }
+  .negative { color: var(--red); }
+  .neutral { color: var(--text-dim); }
+
+  /* RSI Bar */
+  .rsi-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 130px;
+  }
+  .rsi-bar {
+    width: 80px;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .rsi-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+  .rsi-value { font-size: 12px; font-weight: 600; min-width: 32px; }
+  .rsi-zone {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 6px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .rsi-zone.oversold { background: rgba(168,85,247,0.2); color: var(--purple); }
+  .rsi-zone.overbought { background: rgba(255,71,87,0.2); color: var(--red); }
+
+  /* Status Indicators */
+  .status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+  }
+  .status-dot.on { background: var(--green); }
+  .status-dot.off { background: var(--red); }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+  }
+  .tab {
+    padding: 8px 16px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .tab.active {
+    background: var(--blue);
+    color: white;
+    border-color: var(--blue);
+  }
+  .tab:hover:not(.active) { background: var(--surface2); }
+
+  /* Loading */
+  .loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 300px;
+    color: var(--text-dim);
+    font-size: 16px;
+  }
+  .loading::after {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-left: 10px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Refresh button */
+  .refresh-btn {
+    padding: 8px 16px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .refresh-btn:hover { background: var(--surface2); }
+
+  /* Footer */
+  .footer {
+    color: var(--text-dim);
+    font-size: 12px;
+    text-align: center;
+    padding: 16px;
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+<div class="container" id="app">
+  <div class="loading" id="loading">Loading dashboard data</div>
+</div>
+
+<script>
+let DATA = null;
+let showAll = false;
+let sortCol = null;
+let sortAsc = true;
+
+async function fetchData() {
+  try {
+    const resp = await fetch('/api/data');
+    DATA = await resp.json();
+    render();
+  } catch (e) {
+    document.getElementById('app').innerHTML = `
+      <div class="loading" style="color:var(--red)">Failed to load data. Is the server running?</div>`;
+  }
+}
+
+function sortStocks(stocks, col, asc) {
+  const key = {
+    'symbol': s => s.symbol,
+    'price': s => s.close,
+    'change': s => s.daily_change,
+    'weekly': s => s.weekly_change ?? -999,
+    'rsi': s => s.rsi ?? -1,
+    'signal': s => s.signal ? s.signal.signal : '',
+    'trades': s => s.bt_trades,
+    'winrate': s => s.bt_win_rate,
+    'return': s => s.bt_total_return,
+  }[col];
+  if (!key) return stocks;
+  return [...stocks].sort((a, b) => {
+    const va = key(a), vb = key(b);
+    if (va < vb) return asc ? -1 : 1;
+    if (va > vb) return asc ? 1 : -1;
+    return 0;
+  });
+}
+
+function handleSort(col) {
+  if (sortCol === col) {
+    sortAsc = !sortAsc;
+  } else {
+    sortCol = col;
+    sortAsc = col === 'symbol';  // alpha ascending by default, others descending
+  }
+  render();
+}
+
+function render() {
+  if (!DATA) return;
+  const app = document.getElementById('app');
+
+  const buys = DATA.all_signals.filter(s => s.signal === 'BUY');
+  const sells = DATA.all_signals.filter(s => s.signal === 'SELL');
+  const warns = DATA.all_signals.filter(s => s.signal === 'WARN');
+
+  const watchlistStocks = DATA.stocks.filter(s => s.in_watchlist);
+  let displayStocks = showAll ? DATA.stocks : watchlistStocks;
+
+  if (sortCol) {
+    displayStocks = sortStocks(displayStocks, sortCol, sortAsc);
+  }
+
+  const oversold = DATA.market_overview.oversold || [];
+  const overbought = DATA.market_overview.overbought || [];
+
+  const arrow = (col) => {
+    if (sortCol !== col) return '';
+    return `<span class="sort-arrow">${sortAsc ? '&#9650;' : '&#9660;'}</span>`;
+  };
+
+  app.innerHTML = `
+    <div class="header">
+      <h1>
+        <span>PSE</span> Signal Dashboard
+        ${DATA.dynamic_ranking ? '<span class="badge-dynamic">DYNAMIC</span>' : ''}
+      </h1>
+      <div class="header-meta">
+        <div class="date">Market Data: ${DATA.market_date}</div>
+        <div>Updated: ${DATA.updated_at}</div>
+        <button class="refresh-btn" onclick="fetchData()" style="margin-top:6px;">Refresh</button>
+      </div>
+    </div>
+
+    <!-- Market Overview -->
+    <div class="overview">
+      <div class="card">
+        <div class="card-label">Stocks Up</div>
+        <div class="card-value green">${DATA.market_overview.up}</div>
+        <div class="card-sub">of ${DATA.market_overview.total} tracked</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Stocks Down</div>
+        <div class="card-value red">${DATA.market_overview.down}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Buy Signals</div>
+        <div class="card-value green">${buys.length}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Sell / Warn</div>
+        <div class="card-value ${sells.length > 0 ? 'red' : 'yellow'}">${sells.length + warns.length}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Watchlist</div>
+        <div class="card-value blue">${DATA.watchlist.length}</div>
+        <div class="card-sub">passed backtest filter</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Oversold</div>
+        <div class="card-value purple">${oversold.length}</div>
+        <div class="card-sub">${oversold.length > 0 ? oversold.join(', ') : 'none'}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Overbought</div>
+        <div class="card-value orange">${overbought.length}</div>
+        <div class="card-sub">${overbought.length > 0 ? overbought.join(', ') : 'none'}</div>
+      </div>
+    </div>
+
+    <!-- Alert Chips -->
+    ${(oversold.length > 0 || overbought.length > 0 || buys.length > 0) ? `
+    <div class="alerts-bar">
+      ${oversold.map(sym => {
+        const s = DATA.stocks.find(x => x.symbol === sym);
+        return `<div class="alert-chip oversold">
+          <span class="alert-label">OVERSOLD</span>
+          <strong>${sym}</strong> RSI ${s ? s.rsi : '?'}
+        </div>`;
+      }).join('')}
+      ${overbought.map(sym => {
+        const s = DATA.stocks.find(x => x.symbol === sym);
+        return `<div class="alert-chip overbought">
+          <span class="alert-label">OVERBOUGHT</span>
+          <strong>${sym}</strong> RSI ${s ? s.rsi : '?'}
+        </div>`;
+      }).join('')}
+      ${buys.map(s => `
+        <div class="alert-chip buy">
+          <span class="alert-label">BUY SIGNAL</span>
+          <strong>${s.symbol}</strong> PHP ${s.close.toFixed(2)}
+        </div>
+      `).join('')}
+    </div>` : ''}
+
+    <!-- Signal Panels -->
+    <div class="signals">
+      <div class="signal-group">
+        <h3><span class="signal-badge buy">BUY</span> Entry Signals</h3>
+        ${buys.length === 0 ? '<div class="no-signals">No buy signals right now</div>' :
+          buys.map(s => {
+            const stock = DATA.stocks.find(x => x.symbol === s.symbol);
+            return `
+            <div class="signal-item">
+              <div>
+                <div class="signal-symbol">${s.symbol} ${DATA.watchlist.includes(s.symbol) ? '&#9733;' : ''}</div>
+                <div class="signal-name">${stock ? stock.name : ''}</div>
+                <div class="signal-price">PHP ${s.close.toFixed(2)} | RSI: ${s.rsi}</div>
+              </div>
+              <div class="signal-reason">${s.reason}</div>
+            </div>`;
+          }).join('')}
+      </div>
+      <div class="signal-group">
+        <h3><span class="signal-badge sell">SELL</span> / <span class="signal-badge warn">WARN</span> Signals</h3>
+        ${sells.length + warns.length === 0 ? '<div class="no-signals">No sell/warn signals right now</div>' :
+          [...sells, ...warns].map(s => {
+            const stock = DATA.stocks.find(x => x.symbol === s.symbol);
+            return `
+            <div class="signal-item">
+              <div>
+                <div class="signal-symbol">${s.symbol} ${DATA.watchlist.includes(s.symbol) ? '&#9733;' : ''}</div>
+                <div class="signal-name">${stock ? stock.name : ''}</div>
+                <div class="signal-price">PHP ${s.close.toFixed(2)} | RSI: ${s.rsi}</div>
+              </div>
+              <div>
+                <span class="signal-badge ${s.signal.toLowerCase()}">${s.signal}</span>
+                <div class="signal-reason">${s.reason}</div>
+              </div>
+            </div>`;
+          }).join('')}
+      </div>
+    </div>
+
+    <!-- Stock Table -->
+    <div class="section-header">
+      <div class="section-title">
+        Stock Overview <span class="count">(${displayStocks.length} stocks)</span>
+      </div>
+      <div class="tabs">
+        <button class="tab ${!showAll ? 'active' : ''}" onclick="showAll=false;sortCol=null;render();">Watchlist Only</button>
+        <button class="tab ${showAll ? 'active' : ''}" onclick="showAll=true;sortCol=null;render();">All Stocks</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="handleSort('symbol')">Symbol ${arrow('symbol')}</th>
+            <th onclick="handleSort('price')">Price (PHP) ${arrow('price')}</th>
+            <th onclick="handleSort('change')">1D % ${arrow('change')}</th>
+            <th onclick="handleSort('weekly')">7D % ${arrow('weekly')}</th>
+            <th onclick="handleSort('rsi')">RSI ${arrow('rsi')}</th>
+            <th>MACD</th>
+            <th>EMA</th>
+            <th onclick="handleSort('signal')">Signal ${arrow('signal')}</th>
+            <th onclick="handleSort('trades')">BT Trades ${arrow('trades')}</th>
+            <th onclick="handleSort('winrate')">Win Rate ${arrow('winrate')}</th>
+            <th onclick="handleSort('return')">2Y Return ${arrow('return')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${displayStocks.map(s => {
+            const changeClass = s.daily_change > 0 ? 'positive' : s.daily_change < 0 ? 'negative' : 'neutral';
+            const weekClass = s.weekly_change > 0 ? 'positive' : s.weekly_change < 0 ? 'negative' : 'neutral';
+            const rsiColor = s.rsi === null ? '#555' :
+              s.rsi > 75 ? '#ff4757' : s.rsi > 65 ? '#ff8c42' : s.rsi > 40 ? '#00c48c' : s.rsi > 30 ? '#ffc107' : '#a855f7';
+            const rsiPct = s.rsi !== null ? Math.min(100, Math.max(0, s.rsi)) : 0;
+            const signalBadge = s.signal
+              ? `<span class="signal-badge ${s.signal.signal.toLowerCase()}">${s.signal.signal}</span>`
+              : '<span class="neutral">-</span>';
+            const btRetClass = s.bt_total_return > 0 ? 'positive' : s.bt_total_return < 0 ? 'negative' : 'neutral';
+            const wrClass = s.bt_win_rate >= 50 ? 'positive' : s.bt_win_rate > 0 ? 'negative' : 'neutral';
+
+            let rsiZoneTag = '';
+            if (s.rsi_zone === 'oversold') rsiZoneTag = '<span class="rsi-zone oversold">OVERSOLD</span>';
+            else if (s.rsi_zone === 'overbought') rsiZoneTag = '<span class="rsi-zone overbought">OVERBOUGHT</span>';
+
+            return `<tr class="${s.in_watchlist ? 'watchlist-row' : ''}">
+              <td>
+                <a href="https://www.tradingview.com/chart/?symbol=PSE%3A${s.symbol}" target="_blank" style="color:inherit;text-decoration:none">
+                  <strong>${s.symbol}</strong>
+                  ${s.in_watchlist ? '<span style="color:var(--yellow)">&#9733;</span>' : ''}
+                  <span style="font-size:11px;color:var(--accent);margin-left:4px">&#8599;</span>
+                  <div style="font-size:11px;color:var(--text-dim)">${s.name || ''}</div>
+                </a>
+              </td>
+              <td>${s.close.toFixed(2)}</td>
+              <td class="${changeClass}">${s.daily_change > 0 ? '+' : ''}${s.daily_change.toFixed(2)}%</td>
+              <td class="${weekClass}">${s.weekly_change !== null ? (s.weekly_change > 0 ? '+' : '') + s.weekly_change.toFixed(2) + '%' : '-'}</td>
+              <td>
+                <div class="rsi-bar-container">
+                  <div class="rsi-bar">
+                    <div class="rsi-bar-fill" style="width:${rsiPct}%;background:${rsiColor}"></div>
+                  </div>
+                  <span class="rsi-value" style="color:${rsiColor}">${s.rsi ?? '-'}</span>
+                  ${rsiZoneTag}
+                </div>
+              </td>
+              <td><span class="status-dot ${s.macd_bullish ? 'on' : 'off'}"></span>${s.macd_bullish ? 'Bull' : 'Bear'}</td>
+              <td><span class="status-dot ${s.ema_aligned ? 'on' : 'off'}"></span>${s.ema_aligned ? '9>21' : '9<21'}</td>
+              <td>${signalBadge}</td>
+              <td>${s.bt_trades}</td>
+              <td class="${wrClass}">${s.bt_win_rate.toFixed(1)}%</td>
+              <td class="${btRetClass}">${s.bt_total_return > 0 ? '+' : ''}${s.bt_total_return.toFixed(2)}%</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer">
+      Filter: &ge; ${DATA.filter_criteria.min_trades} trades, &ge; ${DATA.filter_criteria.min_win_rate}% win rate, &gt; ${DATA.filter_criteria.min_total_return}% return
+      &nbsp;|&nbsp; Strategy: MACD(12,26,9) + EMA(9,21) + RSI(14) &nbsp;|&nbsp; SL 3% / TP 8%
+      &nbsp;|&nbsp; &#9733; = Watchlist stock
+      ${DATA.dynamic_ranking ? '&nbsp;|&nbsp; Top stocks ranked dynamically by turnover' : ''}
+    </div>
+  `;
+}
+
+fetchData();
+</script>
+</body>
+</html>

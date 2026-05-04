@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+Lib/
+Scripts/
+pyvenv.cfg
+Include/
+
+# Data (fetched from API, not tracked)
+data/*.csv
+
+# Claude Code
+.claude/
