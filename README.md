@@ -103,3 +103,7 @@ The web dashboard shows:
 - The Phisix API provides close price and volume only (no OHLC)
 - First fetch takes a while (~2 years × 25 stocks); subsequent updates are fast
 - Stock ranking refreshes automatically — new high-volume stocks enter the top 25
+
+## Disclaimer
+
+This project is for **educational and informational purposes only**. It is not financial advice. The authors are not licensed financial advisors. Past backtest performance does not guarantee future results. Always do your own research before making any investment decisions. Trade at your own risk.
