@@ -50,6 +50,10 @@ def parse_args(args: list[str]) -> dict:
         elif arg.startswith("--top="):
             config.TOP_N_STOCKS = int(arg.split("=")[1])
             opts["top"] = config.TOP_N_STOCKS
+        elif arg.startswith("--tf="):
+            tf = arg.split("=")[1]
+            config.set_timeframe(tf)
+            opts["tf"] = tf
         else:
             # Assume it's a period like 1y, 2y, 6m, 30d
             try:
@@ -78,6 +82,8 @@ def print_settings(opts: dict):
             parts.append(f"min_wr={opts['min_wr']}%")
         if "top" in opts:
             parts.append(f"top={opts['top']}")
+        if "tf" in opts:
+            parts.append(f"timeframe={opts['tf']}")
         print(f"[Override] {', '.join(parts)}")
 
 
@@ -87,7 +93,11 @@ def cmd_fetch(args):
     print_settings(opts)
     stocks = get_stocks()
     print(f"Active stocks ({len(stocks)}): {', '.join(stocks)}")
-    fast_fetch_all(symbols=stocks, days=config.LOOKBACK_DAYS)
+    if config.TIMEFRAME == "4h":
+        from fetcher_4h import fetch_all_4h
+        fetch_all_4h(symbols=stocks)
+    else:
+        fast_fetch_all(symbols=stocks, days=config.LOOKBACK_DAYS)
 
 
 def cmd_backtest(args):
@@ -134,7 +144,13 @@ def cmd_update_and_scan(args):
     opts = parse_args(args)
     print_settings(opts)
     stocks = get_stocks()
+
+    # Always fetch both timeframes
+    print("--- Fetching 1D data ---")
     fast_fetch_all(symbols=stocks, days=30)
+    print("\n--- Fetching 4H data ---")
+    from fetcher_4h import fetch_all_4h
+    fetch_all_4h(symbols=stocks, n_bars=1000)
     watchlist = get_filtered_stocks()
     print(f"Watchlist: {', '.join(watchlist)}\n")
     signals = scan_signals(symbols=watchlist)
@@ -178,17 +194,20 @@ Period (optional):
   1y, 2y, 5y, 6m, 90d, etc.
 
 Options (optional):
-  --sl=5          Stop loss percentage (default: 3%)
-  --tp=12         Take profit percentage (default: 8%)
+  --tf=4h         Use 4H candles (default: 1d)
+  --sl=5          Stop loss percentage (default: 6%)
+  --tp=12         Take profit percentage (default: 12%)
   --min-trades=5  Minimum trades for watchlist filter
   --min-wr=60     Minimum win rate % for watchlist filter
   --top=30        Top N stocks to track
 
 Examples:
   py main.py fetch 2y
-  py main.py backtest 5y --sl=5 --tp=12
+  py main.py fetch --tf=4h
+  py main.py backtest --tf=4h --sl=3 --tp=8
   py main.py backtest --min-trades=5 --min-wr=60
   py main.py update
+  py main.py update --tf=4h
   py main.py tune
   py main.py tune --sl=2,3,4,5 --tp=8,10,12,15,20"""
 

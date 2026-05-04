@@ -1,13 +1,14 @@
 """Backtester for MACD+RSI+EMA strategy on PSE stocks."""
 
 import os
+from datetime import datetime, timedelta
 
 import pandas as pd
 
 import config
 from config import (
-    DATA_DIR, MACD_FAST, MACD_SLOW, MACD_SIGNAL, EMA_SHORT, EMA_LONG,
-    RSI_PERIOD, RSI_ENTRY_MIN, RSI_EXIT_MAX, STOCKS,
+    MACD_FAST, MACD_SLOW, MACD_SIGNAL, EMA_SHORT, EMA_LONG,
+    RSI_PERIOD, RSI_ENTRY_MIN, RSI_ENTRY_MAX, RSI_EXIT_MAX, STOCKS,
 )
 from indicators import add_indicators
 
@@ -47,7 +48,7 @@ def backtest_stock(df: pd.DataFrame, sl_pct: float = None,
             # Entry: MACD crossover + EMA alignment + RSI filter
             macd_cross = prev["macd"] <= prev["macd_signal"] and row["macd"] > row["macd_signal"]
             ema_aligned = row["ema_short"] > row["ema_long"]
-            rsi_ok = row["rsi"] > RSI_ENTRY_MIN
+            rsi_ok = RSI_ENTRY_MIN < row["rsi"] < RSI_ENTRY_MAX
 
             if macd_cross and ema_aligned and rsi_ok:
                 in_position = True
@@ -99,12 +100,17 @@ def run_backtest(symbols: list[str] = STOCKS) -> pd.DataFrame:
     results = []
 
     for sym in symbols:
-        path = os.path.join(DATA_DIR, f"{sym}.csv")
+        path = os.path.join(config.DATA_DIR, f"{sym}.csv")
         if not os.path.exists(path):
             print(f"  {sym}: no data, skipping")
             continue
 
         df = pd.read_csv(path, parse_dates=["date"])
+
+        # Limit to LOOKBACK_DAYS
+        cutoff = datetime.now() - timedelta(days=config.LOOKBACK_DAYS)
+        df = df[df["date"] >= cutoff].reset_index(drop=True)
+
         if len(df) < 30:
             print(f"  {sym}: only {len(df)} rows, skipping")
             continue

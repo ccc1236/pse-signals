@@ -7,8 +7,9 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 import pandas as pd
 
+import config
 from config import (
-    DATA_DIR, MACD_FAST, MACD_SLOW, MACD_SIGNAL, EMA_SHORT, EMA_LONG,
+    MACD_FAST, MACD_SLOW, MACD_SIGNAL, EMA_SHORT, EMA_LONG,
     RSI_PERIOD, RSI_ENTRY_MIN, RSI_EXIT_MAX, DYNAMIC_RANKING,
     MIN_TRADES, MIN_WIN_RATE, MIN_TOTAL_RETURN, get_stocks,
 )
@@ -37,7 +38,7 @@ def get_dashboard_data() -> dict:
     # Build per-stock details with indicators
     stock_details = []
     for sym in active_stocks:
-        path = os.path.join(DATA_DIR, f"{sym}.csv")
+        path = os.path.join(config.DATA_DIR, f"{sym}.csv")
         if not os.path.exists(path):
             continue
 
@@ -122,6 +123,7 @@ def get_dashboard_data() -> dict:
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "market_date": stock_details[0]["date"] if stock_details else "N/A",
         "dynamic_ranking": DYNAMIC_RANKING,
+        "timeframe": config.TIMEFRAME,
         "market_overview": {
             "up": up, "down": down, "flat": flat, "total": len(stock_details),
             "oversold": oversold, "overbought": overbought,
@@ -130,19 +132,26 @@ def get_dashboard_data() -> dict:
         "all_signals": all_signals,
         "stocks": stock_details,
         "filter_criteria": {
-            "min_trades": MIN_TRADES,
+            "min_trades": config.MIN_TRADES,
             "min_win_rate": MIN_WIN_RATE,
             "min_total_return": MIN_TOTAL_RETURN,
+        },
+        "strategy": {
+            "sl": config.STOP_LOSS_PCT,
+            "tp": config.TAKE_PROFIT_PCT,
         },
     }
 
 
 def get_trade_history(symbol: str) -> list[dict]:
     """Get backtest trade history for a single stock."""
-    path = os.path.join(DATA_DIR, f"{symbol}.csv")
+    from datetime import timedelta
+    path = os.path.join(config.DATA_DIR, f"{symbol}.csv")
     if not os.path.exists(path):
         return []
     df = pd.read_csv(path, parse_dates=["date"])
+    cutoff = datetime.now() - timedelta(days=config.LOOKBACK_DAYS)
+    df = df[df["date"] >= cutoff].reset_index(drop=True)
     if len(df) < 30:
         return []
     result = backtest_stock(df)
@@ -154,10 +163,22 @@ def get_trade_history(symbol: str) -> list[dict]:
     return trades
 
 
+def _parse_tf(path: str):
+    """Extract tf param from URL query string and set timeframe."""
+    from urllib.parse import urlparse, parse_qs
+    parsed = urlparse(path)
+    qs = parse_qs(parsed.query)
+    tf = qs.get("tf", ["1d"])[0]
+    config.set_timeframe(tf)
+    return parsed.path
+
+
 class DashboardHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
-        if self.path.startswith("/api/trades/"):
-            symbol = self.path.split("/")[-1].upper()
+        clean_path = _parse_tf(self.path)
+
+        if clean_path.startswith("/api/trades/"):
+            symbol = clean_path.split("/")[-1].upper()
             trades = get_trade_history(symbol)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -165,7 +186,29 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(trades).encode())
             return
-        if self.path == "/api/data":
+        if clean_path == "/api/fetch":
+            # Fetch new candles then return updated data
+            try:
+                stocks = get_stocks()
+                if config.TIMEFRAME == "4h":
+                    from fetcher_4h import fetch_all_4h
+                    fetch_all_4h(symbols=stocks, n_bars=1000)
+                else:
+                    from fast_fetch import fast_fetch_all
+                    fast_fetch_all(symbols=stocks, days=30)
+                data = get_dashboard_data()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode())
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+            return
+        if clean_path == "/api/data":
             data = get_dashboard_data()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -186,9 +229,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
 
 def main():
+    import sys
+    # Support --tf=4h flag
+    tf = "1d"
+    for arg in sys.argv[1:]:
+        if arg.startswith("--tf="):
+            from config import set_timeframe
+            tf = arg.split("=")[1]
+            set_timeframe(tf)
+            print(f"Timeframe: {tf}")
+
     port = 8050
     server = HTTPServer(("127.0.0.1", port), DashboardHandler)
-    print(f"Dashboard running at http://localhost:{port}")
+    tf_label = f" [{tf.upper()}]" if tf != "1d" else ""
+    print(f"Dashboard{tf_label} running at http://localhost:{port}")
     print("Press Ctrl+C to stop")
     server.serve_forever()
 

@@ -6,7 +6,8 @@ from itertools import product
 
 import pandas as pd
 
-from config import DATA_DIR, get_stocks
+import config
+from config import get_stocks
 from backtest import backtest_stock
 
 
@@ -14,7 +15,7 @@ def load_stock_data(symbols: list[str]) -> dict[str, pd.DataFrame]:
     """Load all stock CSVs into memory once."""
     data = {}
     for sym in symbols:
-        path = os.path.join(DATA_DIR, f"{sym}.csv")
+        path = os.path.join(config.DATA_DIR, f"{sym}.csv")
         if os.path.exists(path):
             df = pd.read_csv(path, parse_dates=["date"])
             if len(df) >= 30:

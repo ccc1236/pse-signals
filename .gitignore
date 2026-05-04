@@ -11,6 +11,7 @@ Include/
 
 # Data (fetched from API, not tracked)
 data/*.csv
+data/4h/*.csv
 data/ranking_cache.json
 
 # Claude Code

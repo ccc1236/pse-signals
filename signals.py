@@ -5,9 +5,10 @@ from datetime import datetime
 
 import pandas as pd
 
+import config
 from config import (
-    DATA_DIR, MACD_FAST, MACD_SLOW, MACD_SIGNAL, EMA_SHORT, EMA_LONG,
-    RSI_PERIOD, RSI_ENTRY_MIN, RSI_EXIT_MAX, STOCKS,
+    MACD_FAST, MACD_SLOW, MACD_SIGNAL, EMA_SHORT, EMA_LONG,
+    RSI_PERIOD, RSI_ENTRY_MIN, RSI_ENTRY_MAX, RSI_EXIT_MAX, STOCKS,
 )
 from indicators import add_indicators
 
@@ -26,7 +27,7 @@ def scan_signals(symbols: list[str] = None, filtered_only: bool = True) -> list[
     signals = []
 
     for sym in symbols:
-        path = os.path.join(DATA_DIR, f"{sym}.csv")
+        path = os.path.join(config.DATA_DIR, f"{sym}.csv")
         if not os.path.exists(path):
             continue
 
@@ -46,7 +47,7 @@ def scan_signals(symbols: list[str] = None, filtered_only: bool = True) -> list[
         # Entry signal
         macd_cross = prev["macd"] <= prev["macd_signal"] and curr["macd"] > curr["macd_signal"]
         ema_aligned = curr["ema_short"] > curr["ema_long"]
-        rsi_ok = curr["rsi"] > RSI_ENTRY_MIN
+        rsi_ok = RSI_ENTRY_MIN < curr["rsi"] < RSI_ENTRY_MAX
 
         if macd_cross and ema_aligned and rsi_ok:
             signals.append({

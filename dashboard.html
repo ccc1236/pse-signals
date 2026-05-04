@@ -358,6 +358,32 @@
     margin-left: 4px;
   }
 
+  /* Timeframe Toggle */
+  .tf-toggle {
+    display: inline-flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-right: 12px;
+    vertical-align: middle;
+  }
+  .tf-btn {
+    padding: 6px 14px;
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+  }
+  .tf-btn.active {
+    background: var(--blue);
+    color: white;
+  }
+  .tf-btn:hover:not(.active) { background: var(--surface2); }
+
   /* Footer */
   .footer {
     color: var(--text-dim);
@@ -379,10 +405,30 @@ let showAll = false;
 let sortCol = null;
 let sortAsc = true;
 let tradePanel = null;  // { symbol, trades } or null
+let currentTF = '1d';   // '1d' or '4h'
+
+function switchTF(tf) {
+  currentTF = tf;
+  tradePanel = null;
+  fetchData();
+}
+
+async function fetchAndRefresh() {
+  const btn = document.querySelector('.fetch-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Fetching...'; }
+  try {
+    const resp = await fetch(`/api/fetch?tf=${currentTF}`);
+    DATA = await resp.json();
+    render();
+  } catch (e) {
+    console.error('Fetch failed:', e);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Fetch & Refresh'; }
+}
 
 async function showTrades(symbol) {
   try {
-    const resp = await fetch(`/api/trades/${symbol}`);
+    const resp = await fetch(`/api/trades/${symbol}?tf=${currentTF}`);
     const trades = await resp.json();
     tradePanel = { symbol, trades };
     render();
@@ -412,7 +458,7 @@ function renderReasonLabel(reason) {
 
 async function fetchData() {
   try {
-    const resp = await fetch('/api/data');
+    const resp = await fetch(`/api/data?tf=${currentTF}`);
     DATA = await resp.json();
     render();
   } catch (e) {
@@ -484,7 +530,14 @@ function render() {
       <div class="header-meta">
         <div class="date">Market Data: ${DATA.market_date}</div>
         <div>Updated: ${DATA.updated_at}</div>
-        <button class="refresh-btn" onclick="fetchData()" style="margin-top:6px;">Refresh</button>
+        <div style="margin-top:6px;display:flex;align-items:center;justify-content:flex-end;gap:8px">
+          <div class="tf-toggle">
+            <button class="tf-btn ${currentTF === '1d' ? 'active' : ''}" onclick="switchTF('1d')">1D</button>
+            <button class="tf-btn ${currentTF === '4h' ? 'active' : ''}" onclick="switchTF('4h')">4H</button>
+          </div>
+          <button class="refresh-btn" onclick="fetchData()">Refresh</button>
+          <button class="refresh-btn fetch-btn" onclick="fetchAndRefresh()" title="Fetch new candles from API then refresh">Fetch & Refresh</button>
+        </div>
       </div>
     </div>
 
@@ -726,7 +779,7 @@ function render() {
 
     <div class="footer">
       Filter: &ge; ${DATA.filter_criteria.min_trades} trades, &ge; ${DATA.filter_criteria.min_win_rate}% win rate, &gt; ${DATA.filter_criteria.min_total_return}% return
-      &nbsp;|&nbsp; Strategy: MACD(12,26,9) + EMA(9,21) + RSI(14) &nbsp;|&nbsp; SL 3% / TP 8%
+      &nbsp;|&nbsp; Strategy: MACD(12,26,9) + EMA(9,21) + RSI(14) &nbsp;|&nbsp; SL ${DATA.strategy.sl}% / TP ${DATA.strategy.tp}%
       &nbsp;|&nbsp; &#9733; = Watchlist stock
       ${DATA.dynamic_ranking ? '&nbsp;|&nbsp; Top stocks ranked dynamically by turnover' : ''}
     </div>
