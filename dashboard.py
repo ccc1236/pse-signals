@@ -240,7 +240,8 @@ def main():
             print(f"Timeframe: {tf}")
 
     port = 8050
-    server = HTTPServer(("127.0.0.1", port), DashboardHandler)
+    host = os.environ.get("PSE_HOST", "127.0.0.1")
+    server = HTTPServer((host, port), DashboardHandler)
     tf_label = f" [{tf.upper()}]" if tf != "1d" else ""
     print(f"Dashboard{tf_label} running at http://localhost:{port}")
     print("Press Ctrl+C to stop")

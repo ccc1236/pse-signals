@@ -1,0 +1,9 @@
+services:
+  pse-signals:
+    build: .
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PSE_HOST=0.0.0.0
