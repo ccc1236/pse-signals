@@ -7,3 +7,4 @@ services:
       - ./data:/app/data
     environment:
       - PSE_HOST=0.0.0.0
+    restart: unless-stopped
