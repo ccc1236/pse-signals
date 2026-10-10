@@ -13,6 +13,7 @@ Include/
 data/*.csv
 data/4h/*.csv
 data/ranking_cache.json
+data/4h/ranking_cache.json
 
 # Claude Code
 .claude/
